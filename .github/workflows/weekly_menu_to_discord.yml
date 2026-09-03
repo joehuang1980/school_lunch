@@ -1,0 +1,47 @@
+name: Weekly Lunch Menu To Discord
+
+on:
+  schedule:
+    # Every Sunday 13:00 UTC = Sunday 21:00 Asia/Taipei
+    - cron: "0 13 * * 0"
+  workflow_dispatch:
+
+jobs:
+  post-menu:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore posted-file state
+        id: state-cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .state/posted_files.json
+          key: posted-files-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            posted-files-${{ github.ref_name }}-
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Download and post menu to Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          SOURCE_URL: ${{ vars.SOURCE_URL || 'https://sites.google.com/fhes.tn.edu.tw/fhes002/%E5%8D%88%E9%A4%90%E5%BB%9A%E6%88%BF' }}
+          MENU_KEYWORDS: ${{ vars.MENU_KEYWORDS || '午餐,菜單,用餐' }}
+        run: python scripts/post_menu_to_discord.py
+
+      - name: Save posted-file state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .state/posted_files.json
+          key: posted-files-${{ github.ref_name }}-${{ github.run_id }}
