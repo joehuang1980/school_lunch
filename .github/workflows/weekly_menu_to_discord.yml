@@ -1,10 +1,15 @@
-name: Weekly Lunch Menu To Discord
+name: Daily Lunch Menu To Discord
 
 on:
   schedule:
-    # Every Sunday 13:00 UTC = Sunday 21:00 Asia/Taipei
-    - cron: "0 13 * * 0"
+    # Sun–Thu 18:50 Asia/Taipei = 10:50 UTC → posts next school day's menu
+    - cron: "50 10 * * 0-4"
   workflow_dispatch:
+    inputs:
+      date:
+        description: "Target date (YYYY-MM-DD). Leave blank for next school day."
+        required: false
+        default: ""
 
 jobs:
   post-menu:
@@ -15,14 +20,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Restore posted-file state
+      - name: Restore posted-date state
         id: state-cache-restore
         uses: actions/cache/restore@v4
         with:
-          path: .state/posted_files.json
-          key: posted-files-${{ github.ref_name }}-${{ github.run_id }}
+          path: .state/posted_dates.json
+          key: posted-dates-${{ github.ref_name }}-${{ github.run_id }}
           restore-keys: |
-            posted-files-${{ github.ref_name }}-
+            posted-dates-${{ github.ref_name }}-
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -32,16 +37,20 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Download and post menu to Discord
+      - name: Post lunch menu to Discord
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          SOURCE_URL: ${{ vars.SOURCE_URL || 'https://sites.google.com/fhes.tn.edu.tw/fhes002/%E5%8D%88%E9%A4%90%E5%BB%9A%E6%88%BF' }}
-          MENU_KEYWORDS: ${{ vars.MENU_KEYWORDS || '午餐,菜單,用餐' }}
-        run: python scripts/post_menu_to_discord.py
+          SOURCE_URL: ${{ vars.SOURCE_URL || 'https://www.fhes.tn.edu.tw/' }}
+        run: |
+          DATE_ARG=""
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            DATE_ARG="--date ${{ github.event.inputs.date }}"
+          fi
+          python scripts/post_menu_to_discord.py $DATE_ARG
 
-      - name: Save posted-file state
+      - name: Save posted-date state
         if: always()
         uses: actions/cache/save@v4
         with:
-          path: .state/posted_files.json
-          key: posted-files-${{ github.ref_name }}-${{ github.run_id }}
+          path: .state/posted_dates.json
+          key: posted-dates-${{ github.ref_name }}-${{ github.run_id }}
